@@ -464,8 +464,8 @@ Resources:
       DBInstanceClass: db.t3.micro
       AllocatedStorage: 8
       StorageType: gp2
-      MasterUsername: admin
-      MasterUserPassword: 'StrongPwd123!'
+      MasterUsername: # username
+      MasterUserPassword: # password
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups: [ !Ref DBSG ]
       MultiAZ: true
