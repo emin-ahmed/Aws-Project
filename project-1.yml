@@ -1,0 +1,525 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  PROJECT-1 – Architecture web hautement disponible (VPC, ALB, ASG, RDS)
+  avec journalisation 100 % CloudWatch Logs.
+
+###############################################################################
+# 1. PARAMÈTRES PERSONNALISABLES
+###############################################################################
+Parameters:
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Latest Amazon Linux 2023 x86_64 AMI (auto-updated per region)
+
+  VPCCIDR:             { Type: String, Default: 10.0.0.0/16 }
+  PublicSubnetACIDR:   { Type: String, Default: 10.0.1.0/24 }
+  PublicSubnetBCIDR:   { Type: String, Default: 10.0.2.0/24 }
+  AppSubnetACIDR:      { Type: String, Default: 10.0.11.0/24 }
+  AppSubnetBCIDR:      { Type: String, Default: 10.0.12.0/24 }
+  DBSubnetACIDR:       { Type: String, Default: 10.0.21.0/24 }
+  DBSubnetBCIDR:       { Type: String, Default: 10.0.22.0/24 }
+  KeyPairName:         
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: "Clé SSH (facultative pour débogage)"
+
+###############################################################################
+# 2. RESSOURCES
+###############################################################################
+Resources:
+
+# ─────────────────── 2.1 RÉSEAU (VPC, SUBNETS, NAT, ROUTES) ────────────────
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCIDR
+      EnableDnsHostnames: true
+      EnableDnsSupport:   true
+      Tags:
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-vpc' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-igw' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:            !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  ## Public subnets (ALB & NAT)
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:               !Ref VPC
+      AvailabilityZone:    !Select [0, !GetAZs '']
+      CidrBlock:           !Ref PublicSubnetACIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: Tier,  Value: Public }
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-public-a' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:               !Ref VPC
+      AvailabilityZone:    !Select [1, !GetAZs '']
+      CidrBlock:           !Ref PublicSubnetBCIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: Tier,  Value: Public }
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-public-b' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  ## Private subnets – App tier
+  AppSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:            !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock:        !Ref AppSubnetACIDR
+      Tags:
+        - { Key: Tier, Value: App }
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-app-a' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  AppSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:            !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock:        !Ref AppSubnetBCIDR
+      Tags:
+        - { Key: Tier, Value: App }
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-app-b' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  ## Private subnets – DB tier
+  DBSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:            !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock:        !Ref DBSubnetACIDR
+      Tags:
+        - { Key: Tier, Value: DB }
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-db-a' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  DBSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:            !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock:        !Ref DBSubnetBCIDR
+      Tags:
+        - { Key: Tier, Value: DB }
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-db-b' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  ## NAT Gateways (HA)
+  NatEIPA:
+    Type: AWS::EC2::EIP
+    Properties: { Domain: vpc }
+
+  NatGatewayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIPA.AllocationId
+      SubnetId:     !Ref PublicSubnetA
+      Tags:
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-nat-a' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+  NatEIPB:
+    Type: AWS::EC2::EIP
+    Properties: { Domain: vpc }
+
+  NatGatewayB:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIPB.AllocationId
+      SubnetId:     !Ref PublicSubnetB
+      Tags:
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-nat-b' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  ## Route tables
+  PublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-public-rt' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  PublicRouteDefault:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:         !Ref PublicRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:            !Ref InternetGateway
+
+  PublicSubnetAAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:     !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRT
+
+  PublicSubnetBAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:     !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRT
+
+  ## Private RT – AZ-A
+  PrivateRTA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-priv-a-rt' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  PrivateRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:         !Ref PrivateRTA
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:         !Ref NatGatewayA
+
+  AppSubnetAAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:     !Ref AppSubnetA
+      RouteTableId: !Ref PrivateRTA
+
+  DBSubnetAAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:     !Ref DBSubnetA
+      RouteTableId: !Ref PrivateRTA
+
+  ## Private RT – AZ-B
+  PrivateRTB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-priv-b-rt' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  PrivateRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:         !Ref PrivateRTB
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:         !Ref NatGatewayB
+
+  AppSubnetBAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:     !Ref AppSubnetB
+      RouteTableId: !Ref PrivateRTB
+
+  DBSubnetBAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:     !Ref DBSubnetB
+      RouteTableId: !Ref PrivateRTB
+
+# ───────────────────── 2.2 SÉCURITÉ (SG + IAM) ─────────────────────────────
+  ALBSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: ALB HTTP/HTTPS depuis Internet
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80,  ToPort: 80,  CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0 }
+
+  AppSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: EC2 HTTP traffic coming from ALB
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSG
+
+  DBSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: RDS acces SQL from AppSG
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref AppSG
+
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Tags:
+        - { Key: Project, Value: PROJECT-1 }
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [ !Ref EC2InstanceRole ]
+
+# ───────────────────── 2.3 OBSERVABILITÉ – LOG GROUPS ─────────────────────
+  EC2NginxLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /project1/nginx/access
+      RetentionInDays: 14
+
+  EC2SystemLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /project1/system
+      RetentionInDays: 14
+
+  ALBAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /project1/alb/access
+      RetentionInDays: 14
+# ─────────────────── 2.4 COMPUTE – LAUNCH TEMPLATE & ASG ───────────────────
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: ami-0f50ffa645aa3bc1b
+        InstanceType: t3.micro
+        KeyName: !Ref KeyPairName
+        SecurityGroupIds: [ !Ref AppSG ]
+        IamInstanceProfile: { Arn: !GetAtt EC2InstanceProfile.Arn }
+        UserData:
+          Fn::Base64: |
+            #!/bin/bash -xe
+            sudo dnf install -y nginx
+            sudo sed -i 's/listen       80;/listen       8080;/' /etc/nginx/nginx.conf
+            sudo sed -i 's/listen       \[::\]:80;/listen       [::]:8080;/' /etc/nginx/nginx.conf
+            cd /tmp
+            sudo wget https://amazoncloudwatch-agent.s3.amazonaws.com/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+            sudo rpm -U ./amazon-cloudwatch-agent.rpm
+
+            cat >/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CFG'
+            {
+              "logs": {
+                "logs_collected": {
+                  "files": {
+                    "collect_list": [
+                      {
+                        "file_path": "/var/log/nginx/access.log",
+                        "log_group_name": "/project1/nginx/access",
+                        "log_stream_name": "{instance_id}"
+                      },
+                      {
+                        "file_path": "/var/log/messages",
+                        "log_group_name": "/project1/system",
+                        "log_stream_name": "{instance_id}"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+            CFG
+
+            systemctl start amazon-cloudwatch-agent
+
+            echo "<h1>It works! $(hostname)</h1>" > /usr/share/nginx/html/index.html
+            systemctl enable nginx && systemctl start nginx
+
+
+            cat >/etc/systemd/system/flaskapp.service <<'EOF'
+            [Unit]
+            Description=My Flask App
+            After=network.target
+
+            [Service]
+            Type=simple
+            User=root
+            WorkingDirectory=/home/ec2-user
+            ExecStart=/usr/bin/python3 /home/ec2-user/app.py
+            Restart=always
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+
+            systemctl daemon-reload
+            systemctl enable flaskapp
+            systemctl start flaskapp
+
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: [ !Ref AppSubnetA, !Ref AppSubnetB ]
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      MinSize: '2'
+      MaxSize: '6'
+      DesiredCapacity: '2'
+      TargetGroupARNs: [ !Ref TargetGroup ]
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-instance'
+          PropagateAtLaunch: true
+        - Key: "supnum:Lab"
+          Value: "Projet 1"
+          PropagateAtLaunch: true
+        - Key: "supnum:Group"
+          Value: "GROUP-21012-21011-21061-24266"
+          PropagateAtLaunch: true
+        - Key: "supnum:Owner"
+          Value: "21011"
+          PropagateAtLaunch: true
+
+  CPUScalePolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 50
+
+# ─────────────────── 2.5 LOAD BALANCER (ALB) ───────────────────────────────
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets:        [ !Ref PublicSubnetA, !Ref PublicSubnetB ]
+      SecurityGroups: [ !Ref ALBSG ]
+      Tags:
+        - { Key: Name,  Value: !Sub '${AWS::StackName}-alb' }
+        - { Key: "supnum:Lab",   Value: "Projet 1" }
+        - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
+        - { Key: "supnum:Owner", Value: "21011" }
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      HealthCheckPath: /
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+# ─────────────────── 2.6 BASE DE DONNÉES (RDS) ─────────────────────────────
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: private subnets for RDS
+      SubnetIds: [ !Ref DBSubnetA, !Ref DBSubnetB ]
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: mysql
+      EngineVersion: '8.0.35'
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 8
+      StorageType: gp2
+      MasterUsername: admin
+      MasterUserPassword: 'StrongPwd123!'
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups: [ !Ref DBSG ]
+      MultiAZ: true
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 7
+      EnableCloudwatchLogsExports:
+        - error
+        - slowquery
+
+# ─────────────────── 2.7 ALARME EXEMPLE ────────────────────────────────────
+  RDSFreeSpaceAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Espace libre RDS < 2 GiB"
+      Namespace: AWS/RDS
+      MetricName: FreeStorageSpace
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref Database
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 2147483648
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: missing
+
+###############################################################################
+# 3. SORTIES
+###############################################################################
+Outputs:
+  ApplicationURL:
+    Description: "URL publique (ALB)"
+    Value: !GetAtt LoadBalancer.DNSName
+
+  ALBLogGroup:
+    Description: "LogGroup des accès ALB"
+    Value: !Ref ALBAccessLogGroup
+
+  EC2NginxLogGroup:
+    Description: "LogGroup accès Nginx"
+    Value: !Ref EC2NginxLogGroup
