@@ -33,13 +33,51 @@ It is designed to meet these **acceptance criteria**:
 ## 📦 Repository Structure
 
 ├── project-1.yml # CloudFormation template
+
 └── todo-app/
+
 ├── app.py
+
 └── templates/
+
   └── index.html
 
 
-  
+
+---
+
+## 🗺️ Architecture Diagram
+
+Below is the architecture deployed by the CloudFormation template:
+
+![AWS Architecture Diagram](architecture.png)
+
+✅ **Explanation**:
+
+- **Public Subnets**  
+  - Contain the Application Load Balancer (ALB)  
+  - Two NAT Gateways for outbound internet access from private subnets  
+
+- **Private App Subnets**  
+  - Contain EC2 instances running the Flask app in an Auto Scaling Group  
+  - ASG spans multiple Availability Zones (AZ-A, AZ-B) for high availability  
+
+- **Private DB Subnets**  
+  - Host the Amazon RDS MySQL instance with Multi-AZ deployment  
+  - Ensure the database is not publicly accessible  
+
+- **CloudWatch Logs**  
+  - Collects ALB access logs, EC2 system and application logs, and RDS logs  
+
+---
+
+## 🔹 Database Design and High Availability
+
+The Amazon RDS instance is provisioned with:
+
+```yaml
+MultiAZ: true
+
 ---
 
 ## 🚀 How It Works
