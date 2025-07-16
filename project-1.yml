@@ -39,7 +39,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-vpc' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -48,7 +47,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-igw' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -69,7 +67,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-public-a' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   PublicSubnetB:
     Type: AWS::EC2::Subnet
@@ -83,7 +80,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-public-b' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   ## Private subnets – App tier
   AppSubnetA:
@@ -97,7 +93,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-app-a' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   AppSubnetB:
     Type: AWS::EC2::Subnet
@@ -110,7 +105,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-app-b' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   ## Private subnets – DB tier
   DBSubnetA:
@@ -124,7 +118,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-db-a' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   DBSubnetB:
     Type: AWS::EC2::Subnet
@@ -137,7 +130,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-db-b' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   ## NAT Gateways (HA)
   NatEIPA:
@@ -153,7 +145,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-nat-a' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
   NatEIPB:
     Type: AWS::EC2::EIP
     Properties: { Domain: vpc }
@@ -167,7 +158,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-nat-b' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   ## Route tables
   PublicRT:
@@ -178,7 +168,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-public-rt' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   PublicRouteDefault:
     Type: AWS::EC2::Route
@@ -208,7 +197,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-priv-a-rt' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   PrivateRouteA:
     Type: AWS::EC2::Route
@@ -238,7 +226,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-priv-b-rt' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   PrivateRouteB:
     Type: AWS::EC2::Route
@@ -420,8 +407,6 @@ Resources:
         - Key: "supnum:Group"
           Value: "GROUP-21012-21011-21061-24266"
           PropagateAtLaunch: true
-        - Key: "supnum:Owner"
-          Value: "21011"
           PropagateAtLaunch: true
 
   CPUScalePolicy:
@@ -444,7 +429,6 @@ Resources:
         - { Key: Name,  Value: !Sub '${AWS::StackName}-alb' }
         - { Key: "supnum:Lab",   Value: "Projet 1" }
         - { Key: "supnum:Group", Value: "GROUP-21012-21011-21061-24266" }
-        - { Key: "supnum:Owner", Value: "21011" }
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
