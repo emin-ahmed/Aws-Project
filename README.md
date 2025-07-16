@@ -77,7 +77,21 @@ The Amazon RDS instance is provisioned with:
 
 ```yaml
 MultiAZ: true
+Properties:
+      Engine: mysql
+      EngineVersion: '8.0.35'
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 8
+      StorageType: gp2
+      MasterUsername:   # set a username
+      MasterUserPassword: # set a password
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups: [ !Ref DBSG ]
+      MultiAZ: true
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 7
 
+```
 ---
 
 ## 🚀 How It Works
